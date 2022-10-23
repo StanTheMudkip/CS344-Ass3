@@ -3,7 +3,7 @@ CC=gcc --std=gnu99 -g
 all: main
 
 main: main.c
-	$(CC) main.c -o movie_by_year 
+	$(CC) main.c -o smallsh 
 
 clean:
-	rm -f movies *.o
+	rm -f smallsh *.o
