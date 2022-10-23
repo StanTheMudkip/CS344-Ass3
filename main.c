@@ -28,7 +28,20 @@ struct cmmd {
 		int BackGround;									//Keeps track if this is a background proccess?
 };
 
+
+
+
+//**FUNCTIONS:
+void printStr(char* str) {
+	printf("%s\n", str);
+	fflush(stdout);
+}
+
+
 void prompt() {
+	char* token;
+	char* saveptr;										//Using this variable for strtok_r
+	
 	char str_input[420];
 	memset(str_input, '\0', sizeof(str_input));			//Clears the string memory to only NULL
 	printf(": ");										//Character to denote that we are ready for a new command.
@@ -44,14 +57,28 @@ void prompt() {
 		str_input[strlen(str_input)-1] = '\0';			//Replace the newline with a null terminator so that we can tokenize this string and parse it.
 	}
 	//printf("The command you input w/out a (natural) '\\n' is: %s\n", str_input);
-	/fflush(stdout);
+	//fflush(stdout);
 	
+	
+	//Parse the input
+	
+	token = strtok_r(str_input, " ", &saveptr); 		//Grabs the first argument (the actual command) 
+	printStr(token);
+	
+	while(token != NULL) 
+	{
+		token = token = strtok_r(NULL, " ", &saveptr); 
+		
+		if( token != NULL) 
+		{
+			printStr(token);
+		}
+	}
 	
 }
 
-//**FUNCTIONS:
+
 int main() {
-	
 	//Prompt user for input
 	prompt();
 	
