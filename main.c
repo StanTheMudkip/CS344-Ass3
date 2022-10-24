@@ -23,9 +23,9 @@
 typedef struct cmmd command;
 //Structure of commands that will be used
 struct cmmd {
-		int argc;										//Keeps count of the number of arguments
-		char* argv[420];								//Set max of arguments to 420 characters (includes the actual command)
-		int BackGround;									//Keeps track if this is a background proccess?
+		int argc;															//Keeps count of the number of arguments
+		char* argv[420];													//Set max of arguments to 420 characters (includes the actual command along side arguments)
+		int BackGround;														//Keeps track if this is a background proccess?
 };
 
 
@@ -38,23 +38,23 @@ void printStr(char* str) {
 }
 
 
-void prompt() {
+void prompt(command* cmd) {
 	char* token;
-	char* saveptr;										//Using this variable for strtok_r
+	char* saveptr;															//Using this variable for strtok_r
 	
 	char str_input[420];
-	memset(str_input, '\0', sizeof(str_input));			//Clears the string memory to only NULL
-	printf(": ");										//Character to denote that we are ready for a new command.
+	memset(str_input, '\0', sizeof(str_input));								//Clears the string memory to only NULL
+	printf(": ");															//Character to denote that we are ready for a new command.
 	
 	//Read in a line from the user
-	fgets(str_input, 419, stdin);						//take 419 just to make sure we have enough room in the string for a NULL terminator
+	fgets(str_input, 419, stdin);											//take 419 just to make sure we have enough room in the string for a NULL terminator
 	//printf("The command you input is: %s\n", str_input);
 	//fflush(stdout);
 	
 	//check if we have filled the string and that it is greater than 1
 	if( (str_input[strlen(str_input)-1] == '\n') && (strlen(str_input) > 1) )
 	{
-		str_input[strlen(str_input)-1] = '\0';			//Replace the newline with a null terminator so that we can tokenize this string and parse it.
+		str_input[strlen(str_input)-1] = '\0';								//Replace the newline with a null terminator so that we can tokenize this string and parse it.
 	}
 	//printf("The command you input w/out a (natural) '\\n' is: %s\n", str_input);
 	//fflush(stdout);
@@ -62,25 +62,42 @@ void prompt() {
 	
 	//Parse the input
 	
-	token = strtok_r(str_input, " ", &saveptr); 		//Grabs the first argument (the actual command) 
-	printStr(token);
+	token = strtok_r(str_input, " ", &saveptr); 							//Grabs the first argument (the actual command) 
+	//printStr(token);
 	
 	while(token != NULL) 
 	{
-		token = token = strtok_r(NULL, " ", &saveptr); 
+		//Grab and store the data in the cmd struct
+		cmd->argv[cmd->argc] = malloc( sizeof(strlen(token)) ); 				//allocate memory for the new command
+		memset( cmd->argv[cmd->argc], '\0', sizeof(cmd->argv[cmd->argc]) );		//Clears the allocated string memory for copying.
+		strcpy(cmd->argv[cmd->argc], token);									
+		cmd->argc += 1;														//increment the number of arguments
 		
-		if( token != NULL) 
+		token = token = strtok_r(NULL, " ", &saveptr); 						//Grab the next argument (if it doesnt exist it will be NULL)
+		
+		/*Prints each token that is aquired.
+		if(token != NULL) 
 		{
 			printStr(token);
 		}
+		*/
 	}
+	
+	//Set the last cmd argument to NULL for when we call the process in exec
+	cmd->argv[cmd->argc] = NULL;
+	
+	//Check if this needs to be set as a background process? ( '&' the background notifier will always be the last argument of each command besides NULL.)
 	
 }
 
 
 int main() {
+	command cmd;															//Create an instance of my command struct
+	cmd.argc = 0;															//Set the unitialized argument count to 0;
+	
+	
 	//Prompt user for input
-	prompt();
+	prompt(&cmd);
 	
 	
 	return 0;
