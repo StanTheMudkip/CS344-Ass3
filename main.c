@@ -37,6 +37,16 @@ void printStr(char* str) {
 	fflush(stdout);
 }
 
+void printCommand(command cmd) {
+	printf("Argc: %d, Argv: ", cmd.argc);
+	for ( int i = 0; i < cmd.argc; i++) 
+	{
+		printf("%s ", cmd.argv[i]);
+		fflush(stdout);
+	}
+	printf("\n");
+}
+
 
 void prompt(command* cmd) {
 	char* token;
@@ -98,6 +108,7 @@ int main() {
 	
 	//Prompt user for input
 	prompt(&cmd);
+	//printCommand(cmd);
 	
 	
 	return 0;
