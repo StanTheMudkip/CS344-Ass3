@@ -18,6 +18,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 
+
 //**STRUCTS:
 //defines command as a standard type for use
 typedef struct cmmd command;
@@ -55,6 +56,7 @@ void prompt(command* cmd) {
 	char str_input[420];
 	memset(str_input, '\0', sizeof(str_input));								//Clears the string memory to only NULL
 	printf(": ");															//Character to denote that we are ready for a new command.
+	fflush(stdout);
 	
 	//Read in a line from the user
 	fgets(str_input, 419, stdin);											//take 419 just to make sure we have enough room in the string for a NULL terminator
@@ -109,6 +111,32 @@ int main() {
 	//Prompt user for input
 	prompt(&cmd);
 	//printCommand(cmd);
+	
+	//check if the command (first argument) is a newline
+	if( strcmp(cmd.argv[0], "\n") )
+	{
+		//check if the command (first charcter of the first argument) is a comment!
+		if(cmd.argv[0][0] != '#')
+		{
+			//This is where we can check for our versions of cd, exit, and status
+			if( strcmp(cmd.argv[0], "exit") == 0)								//If we enter exit, we just exit the shell (aka this program/process)
+			{
+				return 0;
+			}
+			else if( strcmp(cmd.argv[0], "cd") == 0 )
+			{
+				printf("Changing Directory\n");
+				fflush(stdout);
+			}
+			else if( strcmp(cmd.argv[0], "status") == 0 )
+			{
+				printf("Showing status\n");
+				fflush(stdout);
+			}
+			//Then handle other commands?
+			
+		}
+	}
 	
 	
 	return 0;
