@@ -25,7 +25,7 @@ typedef struct cmmd command;
 //Structure of commands that will be used
 struct cmmd {
 		int argc;																//Keeps count of the number of arguments
-		char* argv[420];														//Set max of arguments to 420 characters (includes the actual command along side arguments)
+		char* argv[512];														//Set max of arguments to (**MAX NEEDS TO BE 512 ARGS**) characters (includes the actual command along side arguments)
 		int BackGround;															//Keeps track if this is a background proccess?
 };
 
@@ -41,10 +41,12 @@ void freeCommand(command* cmd)
 		if (!cmd->argv[cmd->argc])												//If the argument exists, free it
 		{
 			//printf("Freeing\n");
+			//fflush(stdout);
+			
 			free(cmd->argv[cmd->argc]);
 			//Decrement the argument counter
-			cmd->argc -= 1;
 		}
+		cmd->argc -= 1;
 	}
 	
 	//Reset the allocated memory to NULL
@@ -62,28 +64,30 @@ void printStr(char* str) {
 
 void printCommand(command cmd) {
 	printf("Argc: %d, Argv: ", cmd.argc);
+	fflush(stdout);
 	for ( int i = 0; i < cmd.argc; i++) 
 	{
 		printf("%s ", cmd.argv[i]);
 		fflush(stdout);
 	}
 	printf("\n");
+	fflush(stdout);
 }
 
 void prompt(command* cmd) {
-	//NEED TO RESET THE COMMAND CMD SO THAT IS WONT SAVE WHAT IT WAS!!!!!!
+	//NEED TO RESET THE COMMAND CMD SO THAT IT WONT JUST CONTAIN THE PREVIOUS COMMAND'S ARGUMENTS/VALUES AND STUFF!!!!!!!!
 	freeCommand(cmd);
 	
 	char* token;
 	char* saveptr;																//Using this variable for strtok_r
 	
-	char str_input[420];
+	char str_input[2049];														//Set maximum amount of characters that we can take in to 2048 (excluding null character?)
 	memset(str_input, '\0', sizeof(str_input));									//Clears the string memory to only NULL
 	printf(": ");																//Character to denote that we are ready for a new command.
 	fflush(stdout);
 	
 	//Read in a line from the user
-	fgets(str_input, 419, stdin);												//take 419 just to make sure we have enough room in the string for a NULL terminator
+	fgets(str_input, 2048, stdin);												//take 2048 just to make sure we have enough room in the string for a NULL terminator
 	//printf("The command you input is: %s\n", str_input);
 	//fflush(stdout);
 	
@@ -120,11 +124,49 @@ void prompt(command* cmd) {
 		*/
 	}
 	
-	//Set the last cmd argument to NULL for when we call the process in exec
+
+	//Set the last cmd argument to NULL for if/when we call the process in an exec
 	cmd->argv[cmd->argc] = NULL;
 	
 	//Check if this needs to be set as a background process? ( '&' the background notifier will always be the last argument of each command besides NULL.)
 	
+}
+
+void myCD(command* cmd) {
+	//Check if we actually have a second argument to cd
+	if(cmd->argv[1] != NULL)
+	{
+		//Check if the directory exists!
+		DIR* targetDir = opendir(cmd->argv[1]);									//Attempt to open the targeted directory/path
+		if(targetDir != NULL) 
+		{
+			//The directory exists and change to the targeted directory
+			printf("Changing to Directory: %s\n", cmd->argv[1] );
+			fflush(stdout);
+			
+			chdir(cmd->argv[1]);
+			closedir(targetDir);												//Close the directory since we know it exists now.
+			return;
+		}
+		else 
+		{
+			//If the directory wasn't found we let the user know
+			printf("cd: %s: No such file or directory\n", cmd->argv[1]);
+			fflush(stdout);
+			return;
+		}
+	}
+	//If no argument to cd, just change to home directory using env variable.
+	else 
+	{
+		printf("Changing to HOME Directory: %s\n", getenv("HOME") );
+		fflush(stdout);
+		
+		DIR* targetDir = opendir( getenv("HOME") );								//Grabs the path of the HOME env and opens the directory.
+		chdir( getenv("HOME") );												//Change the current working directory to that HOME path.
+		closedir(targetDir);													//Don't need to keep the directory open...
+		return;
+	}
 }
 
 
@@ -145,15 +187,18 @@ int main() {
 			//This is where we can check for our versions of cd, exit, and status
 			if( !strcmp(cmd.argv[0], "exit") )									//If we enter exit, we just exit the shell (aka this program/process)
 			{
-				printf("EXITING smallsh\n");
+				printf("EXITING smallsh Session!\n");
 				fflush(stdout);
 				again = 1;
 				return 0;
 			}
 			else if( !strcmp(cmd.argv[0], "cd") )
 			{
-				printf("Changing Directory\n");
-				fflush(stdout);
+				//Perform my version of changing the directory
+				
+				//printf("Changing Directory\n");
+				//fflush(stdout);
+				myCD(&cmd);														//Pass myCD the commmand.
 			}
 			else if( !strcmp(cmd.argv[0], "status") )
 			{
@@ -163,6 +208,8 @@ int main() {
 			else 
 			{
 				//Then handle other commands
+				printf("Passing off command to shell/OS?\n");
+				fflush(stdout);
 			}
 		
 		}
