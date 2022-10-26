@@ -56,6 +56,7 @@ void freeCommand(command* cmd)
 
 
 
+
 //**FUNCTIONS:
 void printStr(char* str) {
 	printf("%s\n", str);
@@ -169,11 +170,18 @@ void myCD(command* cmd) {
 	}
 }
 
+void printmyStatus(int status) {
+	printf("Exit status of: %d\n", status);
+	fflush(stdout);
+}
+
 
 int main() {
 	command cmd;																//Create an instance of my command struct
 	cmd.argc = 0;																//Set the unitialized argument count to 0;
 	int again = 0;
+	int status = 0;																//Keeps track of the exit status of a previous command/program (can be a terminiation signal?).
+	
 	
 	while (again == 0) 															//Repeat prompting and handling commands
 	{
@@ -202,8 +210,11 @@ int main() {
 			}
 			else if( !strcmp(cmd.argv[0], "status") )
 			{
-				printf("Showing status\n");
-				fflush(stdout);
+				//Print the status of the previously executed command/program (can be a terminiation signal?)
+				
+				//printf("Showing status\n");
+				//fflush(stdout);
+				printmyStatus(status);
 			}
 			else 
 			{
