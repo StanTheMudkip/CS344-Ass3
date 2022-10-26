@@ -55,6 +55,27 @@ void freeCommand(command* cmd)
 
 
 
+typedef struct state status;
+struct state {
+	int status;																	//Keeps track of the exit status of a previous command/program 
+	int signal;																	//Keeps track of the termination signal of the previous command/program
+};
+
+void printmyStatus(status stat) {
+	//Check if there a termination signal was recieved with the last process
+	if( stat.signal != 0 )
+	{
+		//If a signal was termination recieved from the last process, print out the singal number.
+		printf("Terminated by signal: %d\n", stat.status);
+		fflush(stdout);
+	}
+	else 
+	{
+		//If no signal was recieved print out the exit status
+		printf("Exit status of: %d\n", stat.status);
+		fflush(stdout);
+	}
+}
 
 
 //**FUNCTIONS:
@@ -142,8 +163,8 @@ void myCD(command* cmd) {
 		if(targetDir != NULL) 
 		{
 			//The directory exists and change to the targeted directory
-			printf("Changing to Directory: %s\n", cmd->argv[1] );
-			fflush(stdout);
+			//printf("Changing to Directory: %s\n", cmd->argv[1] );
+			//fflush(stdout);
 			
 			chdir(cmd->argv[1]);
 			closedir(targetDir);												//Close the directory since we know it exists now.
@@ -152,16 +173,16 @@ void myCD(command* cmd) {
 		else 
 		{
 			//If the directory wasn't found we let the user know
-			printf("cd: %s: No such file or directory\n", cmd->argv[1]);
-			fflush(stdout);
+			//printf("cd: %s: No such file or directory\n", cmd->argv[1]);
+			//fflush(stdout);
 			return;
 		}
 	}
 	//If no argument to cd, just change to home directory using env variable.
 	else 
 	{
-		printf("Changing to HOME Directory: %s\n", getenv("HOME") );
-		fflush(stdout);
+		//printf("Changing to HOME Directory: %s\n", getenv("HOME") );
+		//fflush(stdout);
 		
 		DIR* targetDir = opendir( getenv("HOME") );								//Grabs the path of the HOME env and opens the directory.
 		chdir( getenv("HOME") );												//Change the current working directory to that HOME path.
@@ -170,17 +191,15 @@ void myCD(command* cmd) {
 	}
 }
 
-void printmyStatus(int status) {
-	printf("Exit status of: %d\n", status);
-	fflush(stdout);
-}
-
 
 int main() {
 	command cmd;																//Create an instance of my command struct
 	cmd.argc = 0;																//Set the unitialized argument count to 0;
 	int again = 0;
-	int status = 0;																//Keeps track of the exit status of a previous command/program (can be a terminiation signal?).
+	
+	status stat;																//Keeps track of the exit status of a previous command/program (can be a terminiation signal?).
+	stat.status = 0;															//Starts at 0
+	stat.signal = 0;															//Set to zero, because there is no signal with 0 (Basically uninitialized).
 	
 	
 	while (again == 0) 															//Repeat prompting and handling commands
@@ -214,7 +233,7 @@ int main() {
 				
 				//printf("Showing status\n");
 				//fflush(stdout);
-				printmyStatus(status);
+				printmyStatus(stat);
 			}
 			else 
 			{
