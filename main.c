@@ -27,8 +27,10 @@ struct cmmd {
 		int argc;																//Keeps count of the number of arguments
 		char* argv[512];														//Set max of arguments to (**MAX NEEDS TO BE 512 ARGS**) characters (includes the actual command along side arguments)
 		int backGround;															//Keeps track if this is a background proccess? (bool)
-		int input;																//Keeps track of which File Descriptor to take input from? (bool)
-		int output;																//Keeps track of which File Descriptor to output to (bool)
+		int input;																//Wether or not we need to redirect input (bool)
+		int iIdx;																//Stores the index of the input operator
+		int output;																//Wether or not we need to redirect input (bool)
+		int oIdx;																//Stores the index of the output operator
 };
 
 //Destructor
@@ -99,7 +101,7 @@ void printCommand(command cmd) {
 }
 
 void prompt(command* cmd) {
-	//NEED TO RESET THE COMMAND CMD SO THAT IT WONT JUST CONTAIN THE PREVIOUS COMMAND'S ARGUMENTS/VALUES AND STUFF!!!!!!!!
+	//NEED TO RESET THE COMMAND CMD SO THAT IT WONT JUST CONTAIN THE PREVIOUS COMMAND'S ARGUMENTS/VALUES AND STUFF AND TO NOT LEAK MEMORY!!!!!!!!
 	freeCommand(cmd);
 	
 	char* token;
@@ -151,6 +153,32 @@ void prompt(command* cmd) {
 
 	//Set the last cmd argument to NULL for if/when we call the process in an exec
 	cmd->argv[cmd->argc] = NULL;
+	
+	
+	//Check if we need to do any redirection
+	//Reset redirection variables
+	cmd->output = 0;
+	cmd->oIdx == 0;
+	cmd->input = 0;
+	cmd->iIdx = 0;
+	
+	//Go through all of the arguments, just need to identify if the arguments exist and where this argument is
+	for(int i = 0; i < cmd->argc; i++)
+	{
+		//Actually check if the current argument is an alligator ( < or > )
+		if( strcmp(cmd->argv[i], "<") == 0 )
+		{
+			//Means we are redirecting input
+			cmd->input = 1;														//Set the input bool to true
+			cmd->iIdx = i;														//Store the current index of the redirect operator
+		}
+		if( strcmp(cmd->argv[i], ">") == 0 )
+		{
+			//Means we are redirecting output
+			cmd->output = 1;														//Set the input bool to true
+			cmd->oIdx = i;														//Store the current index of the redirect operator
+		}
+	}
 	
 	//Check if this needs to be set as a background process? ( '&' the background notifier will always be the last argument of each command besides NULL.)
 	
@@ -256,9 +284,12 @@ void handOff (command* cmd, status* stat) {
 int main() {
 	command cmd;																//Create an instance of my command struct
 	cmd.argc = 0;																//Set the unitialized argument count to 0;
-	cmd.input = 0;
-	cmd.output = 0;
-	cmd.backGround = 0;
+	//cmd.input = 0;
+	//cmd.iIdx = 0;
+	//cmd.output = 0;
+	//cmd.oIdx = 0;
+	//cmd.backGround = 0;
+	
 	int again = 0;
 	
 	status stat;																//Keeps track of the exit status of a previous command/program (can be a terminiation signal?).
