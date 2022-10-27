@@ -26,7 +26,9 @@ typedef struct cmmd command;
 struct cmmd {
 		int argc;																//Keeps count of the number of arguments
 		char* argv[512];														//Set max of arguments to (**MAX NEEDS TO BE 512 ARGS**) characters (includes the actual command along side arguments)
-		int BackGround;															//Keeps track if this is a background proccess?
+		int backGround;															//Keeps track if this is a background proccess? (bool)
+		int input;																//Keeps track of which File Descriptor to take input from? (bool)
+		int output;																//Keeps track of which File Descriptor to output to (bool)
 };
 
 //Destructor
@@ -191,10 +193,72 @@ void myCD(command* cmd) {
 	}
 }
 
+void handOffExec (command* cmd, status* stat) {
+	
+	fflush(stdout);																//Flush the stdout buffer before forking
+	pid_t spawnPid = fork();													//Create a child and become a parent
+	switch(spawnPid)
+	{
+		case 0:
+		//This is the little baby spawnling child 
+		
+			execvp(cmd->argv[0], cmd->argv);									//Pass off the command and its arguments to be searched with the PATH env.
+			
+			//If this executes then we couldn't find the command under PATH env.
+			printf("Error: Command:( %s ) was not found!\n", cmd->argv[0]);
+			fflush(stdout);
+			stat->status = 1;													//Set the return status to 1
+			exit(1);
+			
+		case -1:
+		//This is if we have an error forking
+			printf("Error forking\n");
+			fflush(stdout);
+			exit(1);
+			
+		default:
+		//This is the parent
+			//Need to wait and listen for the child's exit status!
+			waitpid(spawnPid, &stat->status, 0);								//Wait for the child's exit status and save it in the status struct.
+		
+	}
+}
+
+void handOff (command* cmd, status* stat) {
+	//Handle for normal, input, output, and background processes.
+	if ( (cmd->backGround == 0) && (cmd->input == 0) && (cmd->output == 0) )
+	{
+		//Regular execution without any modifiers
+		handOffExec(cmd, stat);
+	}
+	else if ( (cmd->backGround == 0) && (cmd->input == 0) && (cmd->output == 1) )
+	{
+		//Handle output redirection
+	}
+	else if ( (cmd->backGround == 0) && (cmd->input == 1) && (cmd->output == 0) )
+	{
+		//Handle input redirection
+	}
+	else if ( (cmd->backGround == 1) && (cmd->input == 0) && (cmd->output == 0) )
+	{
+		//Handle background process
+	}
+}
+
+
+
+
+
+
+
+
 
 int main() {
 	command cmd;																//Create an instance of my command struct
 	cmd.argc = 0;																//Set the unitialized argument count to 0;
+	cmd.input = 0;
+	cmd.output = 0;
+	cmd.backGround = 0;
 	int again = 0;
 	
 	status stat;																//Keeps track of the exit status of a previous command/program (can be a terminiation signal?).
@@ -238,8 +302,10 @@ int main() {
 			else 
 			{
 				//Then handle other commands
-				printf("Passing off command to shell/OS?\n");
-				fflush(stdout);
+				
+				//printf("Passing off command to shell/OS?\n");
+				//fflush(stdout);
+				handOff(&cmd, &stat);											//Decide how to hand off the command to the OS/Shell
 			}
 		
 		}
