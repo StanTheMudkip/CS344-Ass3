@@ -363,6 +363,74 @@ void handOffIn(command* cmd, status* stat) {
 	}
 }
 
+void handOffBoth(command* cmd, status* stat) {
+	//Need to redirect input of the command from a file that is given.
+	
+	int file_descriptor1 = open(cmd->argv[cmd->iIdx + 1], O_RDONLY); 										//Open the given file name
+	//Check if it opened properly
+	if(file_descriptor1 == -1)
+	{
+		printf("Error: Was not able to open file: %s\n", cmd->argv[cmd->iIdx + 1]);
+		fflush(stdout);
+		stat->status = 1;
+		exit(1);
+	}
+	
+	int file_descriptor2;
+	
+	//Now fork and execute the command
+	fflush(stdout);																							//Flush the stdout buffer before forking
+	pid_t spawnPid = fork();																				//Create a child and become a parent
+	switch(spawnPid)
+	{
+		case 0:
+		//This is the little baby spawnling child 
+			
+			//remove the two arguments from the command so they arent taken as arguments to the ACTUAL COMMAND
+			cmd->argv[cmd->iIdx + 1] = NULL;
+			cmd->argv[cmd->iIdx] = NULL;
+			
+			//Redirect stdin (0) to the file!
+			dup2(file_descriptor1, 0);
+			
+			file_descriptor2 = open(cmd->argv[cmd->oIdx + 1], O_WRONLY | O_CREAT | O_TRUNC, 0660); 			//Open the given file name
+			//remove the two arguments from the command so they arent taken as arguments to the ACTUAL COMMAND
+			cmd->argv[cmd->oIdx + 1] = NULL;
+			cmd->argv[cmd->oIdx] = NULL;
+			
+			//Redirect stdout (1) to the file!
+			dup2(file_descriptor2, 1);
+			//Redirect stderror (2) to the file!
+			dup2(file_descriptor2, 2);
+			
+			//Actually execute the command
+			execvp(cmd->argv[0], cmd->argv);																//Pass off the command and its arguments to be searched with the PATH env.
+			
+			//If this executes then we couldn't find the command under PATH env.
+			printf("Error: Executing command!\n");
+			fflush(stdout);
+			stat->status = 1;																				//Set the return status to 1
+			
+			//Also close the file
+			close(file_descriptor1);
+			
+			exit(1);
+			
+		case -1:
+		//This is if we have an error forking
+			printf("Error forking\n");
+			fflush(stdout);
+			exit(1);
+			
+		default:
+		//This is the parent
+			//Need to wait and listen for the child's exit status!
+			waitpid(spawnPid, &stat->status, 0);															//Wait for the child's exit status and save it in the status struct.
+		
+	}
+}
+
+
 void handOff (command* cmd, status* stat) {
 	//Handle for normal, input, output, and background processes.
 	if ( (cmd->input == 0) && (cmd->output == 0) )
@@ -394,8 +462,10 @@ void handOff (command* cmd, status* stat) {
 	else if ( (cmd->input == 1) && (cmd->output == 1) )
 	{
 		//Handle both redirecting input and output.
-		printf("Doing a background command execution!\n");
+		printf("Doing a double redirection command execution!\n");
 		fflush(stdout);
+		
+		handOffBoth(cmd, stat);
 	}
 }
 
