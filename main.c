@@ -26,7 +26,7 @@ typedef struct cmmd command;
 struct cmmd {
 		int argc;																							//Keeps count of the number of arguments
 		char* argv[512];																					//Set max of arguments to (**MAX NEEDS TO BE 512 ARGS**) characters (includes the actual command along side arguments)
-		int backGround;																						//Keeps track if this is a background proccess? (bool)
+		int bg;																								//Keeps track if this is a background proccess? (bool)
 		int input;																							//Wether or not we need to redirect input (bool)
 		int iIdx;																							//Stores the index of the input operator
 		int output;																							//Wether or not we need to redirect input (bool)
@@ -63,6 +63,8 @@ typedef struct state status;
 struct state {
 	int status;																								//Keeps track of the exit status of a previous command/program 
 	int signal;																								//Keeps track of the termination signal of the previous command/program
+	int bgNum;																								//Keeps track of how many bg processes are currently running.
+	pid_t bgPid[20];																						//Keeps hold of 20 background process ID's
 };
 
 void printmyStatus(status stat) {
@@ -98,6 +100,57 @@ void printCommand(command cmd) {
 	}
 	printf("\n");
 	fflush(stdout);
+}
+
+void waitBg(status* stat) {
+	//Check if we actually have any processes in the background.
+	//printf("In waitBg!\n");
+	//fflush(stdout);
+	
+	if(stat->bgNum != 0)
+	{
+		
+		//Go through all of the background processes
+		for (int i = 0; i < stat->bgNum; i++)
+		{
+			//Check if this process is done processing
+			if( waitpid(stat->bgPid[i], &stat->status, WNOHANG) )
+			{
+				//This means that this child/process has finished and its time to dine/begin!
+				printf("background pid %d is done: ", (int) stat->bgPid[i] );								//Print out that the background process has finished.
+				fflush(stdout);
+				
+				//Get rid of the Pid of the finished process in the array
+				/*
+				for(int j = i; j < (stat->bgNum - 1); j++)
+				{
+					//check if the next pid is NULL
+					if(stat->bgPid[j + 1] != NULL)
+					{
+						//Move the next pid down an index
+						stat->bgPid[j] = stat->bgPid[j + 1];
+					}
+					else
+					{
+						//If the next PID is NULL break out of this loop as the job is done!
+						break;
+					}
+				}
+				*/
+				stat->bgNum -= 1;																			//Decrement the amount of processes running
+				
+				//Check if the exit status is something we can interpret
+				if( WIFSIGNALED(stat->status) )
+				{
+					printf("terminated by signal %d\n", WTERMSIG(stat->status) );
+					fflush(stdout);
+				}
+				
+			}
+			
+		}
+		
+	}
 }
 
 void prompt(command* cmd) {
@@ -154,6 +207,29 @@ void prompt(command* cmd) {
 	//Set the last cmd argument to NULL for if/when we call the process in an exec
 	cmd->argv[cmd->argc] = NULL;
 	
+	printf("Checking if there is a background process!\n");
+	fflush(stdout);
+	
+	//Check if this needs to be set as a background process? ( '&' the background notifier will always be the last argument of each command besides NULL.)
+	if( !strcmp(cmd->argv[cmd->argc - 1], "&") )															//Check if the & exists at the end of the command!
+	{
+		//Set the background process bool to true.
+		cmd->bg = 1;
+		
+		//Make sure we get rid of the & so it isnt used as an argument when we execute the command.
+		free(cmd->argv[cmd->argc - 1]);
+		//Now change it to NULL so we know where the arguments end.
+		cmd->argv[cmd->argc - 1] = NULL;
+		
+		//Make sure to lower the argument count by one because & isn't an argument.
+		cmd->argc -= 1;																
+	}
+	//If the & hasn't been found
+	else
+	{
+		//Set the background process bool to false.
+		cmd->bg = 0;
+	}
 	
 	//Check if we need to do any redirection
 	//Reset redirection variables
@@ -165,6 +241,12 @@ void prompt(command* cmd) {
 	//Go through all of the arguments, just need to identify if the arguments exist and where this argument is
 	for(int i = 0; i < cmd->argc; i++)
 	{
+		//If the current argument is NULL, exit
+		if(cmd->argv[i] == NULL)
+		{
+			break;
+		}
+		
 		//Actually check if the current argument is an alligator ( < or > )
 		if( strcmp(cmd->argv[i], "<") == 0 )
 		{
@@ -179,8 +261,6 @@ void prompt(command* cmd) {
 			cmd->oIdx = i;																					//Store the current index of the redirect operator
 		}
 	}
-	
-	//Check if this needs to be set as a background process? ( '&' the background notifier will always be the last argument of each command besides NULL.)
 	
 }
 
@@ -222,6 +302,7 @@ void myCD(command* cmd) {
 }
 
 void handOffExec (command* cmd, status* stat) {
+	int file_descriptor;
 	
 	fflush(stdout);																							//Flush the stdout buffer before forking
 	pid_t spawnPid = fork();																				//Create a child and become a parent
@@ -229,6 +310,20 @@ void handOffExec (command* cmd, status* stat) {
 	{
 		case 0:
 		//This is the little baby spawnling child 
+		
+		
+			//Check if this is a background process
+			if( cmd->bg == 1)
+			{
+				//Open up a tear in space time and send the data into the abyss.
+				file_descriptor = open("/dev/null",O_WRONLY);
+			
+				//Redirect stdout (1) to the void
+				dup2(file_descriptor, 1);
+				//Redirect sterr (2) to the void
+				dup2(file_descriptor, 2);
+			}
+		
 		
 			execvp(cmd->argv[0], cmd->argv);																//Pass off the command and its arguments to be searched with the PATH env.
 			
@@ -246,8 +341,18 @@ void handOffExec (command* cmd, status* stat) {
 			
 		default:
 		//This is the parent
-			//Need to wait and listen for the child's exit status!
-			waitpid(spawnPid, &stat->status, 0);															//Wait for the child's exit status and save it in the status struct.
+			//Check if this a background process
+			if(cmd->bg != 1)
+			{
+				//Need to wait and listen for the child's exit status!
+				waitpid(spawnPid, &stat->status, 0);														//Wait for the child's exit status and save it in the status struct.
+			}	
+			else
+			{
+				//Save the process id of this parent so we can reap the corpse in the actual shell.
+				stat->bgPid[stat->bgNum - 1] = spawnPid; 
+				stat->bgNum += 1; 
+			}															//Wait for the child's exit status and save it in the status struct.
 		
 	}
 }
@@ -255,6 +360,7 @@ void handOffExec (command* cmd, status* stat) {
 void handOffOut(command* cmd, status* stat) {
 	//Need to redirect output of the command to a file that is given.
 	int file_descriptor;
+	int file_descriptor2;
 	
 	fflush(stdout);																							//Flush the stdout buffer before forking
 	pid_t spawnPid = fork();																				//Create a child and become a parent
@@ -270,6 +376,18 @@ void handOffOut(command* cmd, status* stat) {
 			}
 			*/
 			
+			//Check if this is a background process
+			if( cmd->bg == 1)
+			{
+				//Open up a tear in space time and send the data into the abyss.
+				file_descriptor2 = open("/dev/null",O_WRONLY);
+			
+				//Redirect stdout (1) to the void
+				dup2(file_descriptor2, 1);
+				//Redirect sterr (2) to the void
+				dup2(file_descriptor2, 2);
+			}
+			
 			file_descriptor = open(cmd->argv[cmd->oIdx + 1], O_WRONLY | O_CREAT | O_TRUNC, 0660); 			//Open the given file name
 			//remove the two arguments from the command so they arent taken as arguments to the ACTUAL COMMAND
 			cmd->argv[cmd->oIdx + 1] = NULL;
@@ -279,6 +397,7 @@ void handOffOut(command* cmd, status* stat) {
 			dup2(file_descriptor, 1);
 			//Redirect stderror (2) to the file!
 			dup2(file_descriptor, 2);
+			
 			
 			//Actually execute the command
 			execvp(cmd->argv[0], cmd->argv);																//Pass off the command and its arguments to be searched with the PATH env.
@@ -302,9 +421,18 @@ void handOffOut(command* cmd, status* stat) {
 			
 		default:
 		//This is the parent
-			//Need to wait and listen for the child's exit status!
-			waitpid(spawnPid, &stat->status, 0);															//Wait for the child's exit status and save it in the status struct.
-		
+			//Check if this a background process
+			if(cmd->bg != 1)
+			{
+				//Need to wait and listen for the child's exit status!
+				waitpid(spawnPid, &stat->status, 0);														//Wait for the child's exit status and save it in the status struct.
+			}	
+			else
+			{
+				//Save the process id of this parent so we can reap the corpse in the actual shell.
+				stat->bgPid[stat->bgNum - 1] = spawnPid; 
+				stat->bgNum += 1; 
+			}
 	}
 }
 
@@ -312,6 +440,7 @@ void handOffIn(command* cmd, status* stat) {
 	//Need to redirect input of the command from a file that is given.
 	
 	int file_descriptor = open(cmd->argv[cmd->iIdx + 1], O_RDONLY); 										//Open the given file name
+	int file_descriptor2;
 	//Check if it opened properly
 	if(file_descriptor == -1)
 	{
@@ -329,12 +458,25 @@ void handOffIn(command* cmd, status* stat) {
 		case 0:
 		//This is the little baby spawnling child 
 			
+			//Check if this is a background process
+			if( cmd->bg == 1)
+			{
+				//Open up a tear in space time and send the data into the abyss.
+				file_descriptor2 = open("/dev/null",O_WRONLY);
+			
+				//Redirect stdout (1) to the void
+				dup2(file_descriptor2, 1);
+				//Redirect sterr (2) to the void
+				dup2(file_descriptor2, 2);
+			}
+			
 			//remove the two arguments from the command so they arent taken as arguments to the ACTUAL COMMAND
 			cmd->argv[cmd->iIdx + 1] = NULL;
 			cmd->argv[cmd->iIdx] = NULL;
 			
 			//Redirect stdin (0) to the file!
 			dup2(file_descriptor, 0);
+			
 			
 			//Actually execute the command
 			execvp(cmd->argv[0], cmd->argv);																//Pass off the command and its arguments to be searched with the PATH env.
@@ -357,8 +499,18 @@ void handOffIn(command* cmd, status* stat) {
 			
 		default:
 		//This is the parent
-			//Need to wait and listen for the child's exit status!
-			waitpid(spawnPid, &stat->status, 0);															//Wait for the child's exit status and save it in the status struct.
+			//Check if this a background process
+			if(cmd->bg != 1)
+			{
+				//Need to wait and listen for the child's exit status!
+				waitpid(spawnPid, &stat->status, 0);														//Wait for the child's exit status and save it in the status struct.
+			}	
+			else
+			{
+				//Save the process id of this parent so we can reap the corpse in the actual shell.
+				stat->bgPid[stat->bgNum - 1] = spawnPid; 
+				stat->bgNum += 1; 
+			}														//Wait for the child's exit status and save it in the status struct.
 		
 	}
 }
@@ -377,6 +529,7 @@ void handOffBoth(command* cmd, status* stat) {
 	}
 	
 	int file_descriptor2;
+	int file_descriptor3;
 	
 	//Now fork and execute the command
 	fflush(stdout);																							//Flush the stdout buffer before forking
@@ -385,6 +538,18 @@ void handOffBoth(command* cmd, status* stat) {
 	{
 		case 0:
 		//This is the little baby spawnling child 
+			
+			//Check if this is a background process
+			if( cmd->bg == 1)
+			{
+				//Open up a tear in space time and send the data into the abyss.
+				file_descriptor3 = open("/dev/null",O_WRONLY);
+			
+				//Redirect stdout (1) to the void
+				dup2(file_descriptor3, 1);
+				//Redirect sterr (2) to the void
+				dup2(file_descriptor3, 2);
+			}
 			
 			//remove the two arguments from the command so they arent taken as arguments to the ACTUAL COMMAND
 			cmd->argv[cmd->iIdx + 1] = NULL;
@@ -402,6 +567,7 @@ void handOffBoth(command* cmd, status* stat) {
 			dup2(file_descriptor2, 1);
 			//Redirect stderror (2) to the file!
 			dup2(file_descriptor2, 2);
+			
 			
 			//Actually execute the command
 			execvp(cmd->argv[0], cmd->argv);																//Pass off the command and its arguments to be searched with the PATH env.
@@ -424,11 +590,22 @@ void handOffBoth(command* cmd, status* stat) {
 			
 		default:
 		//This is the parent
-			//Need to wait and listen for the child's exit status!
-			waitpid(spawnPid, &stat->status, 0);															//Wait for the child's exit status and save it in the status struct.
-		
+			//Check if this a background process
+			if(cmd->bg != 1)
+			{
+				//Need to wait and listen for the child's exit status!
+				waitpid(spawnPid, &stat->status, 0);														//Wait for the child's exit status and save it in the status struct.
+			}	
+			else
+			{
+				//Save the process id of this parent so we can reap the corpse in the actual shell.
+				stat->bgPid[stat->bgNum - 1] = spawnPid; 
+				stat->bgNum += 1; 
+			}
+
 	}
 }
+
 
 
 void handOff (command* cmd, status* stat) {
@@ -436,16 +613,16 @@ void handOff (command* cmd, status* stat) {
 	if ( (cmd->input == 0) && (cmd->output == 0) )
 	{
 		//Regular execution without any modifiers
-		printf("Doing a normal command execution!\n");
-		fflush(stdout);
+		//printf("Doing a normal command execution!\n");
+		//fflush(stdout);
 		
 		handOffExec(cmd, stat);
 	}
 	else if ( (cmd->input == 0) && (cmd->output == 1) )
 	{
 		//Handle output redirection
-		printf("Doing an output redirection command execution!\n");
-		fflush(stdout);
+		//printf("Doing an output redirection command execution!\n");
+		//fflush(stdout);
 		
 		handOffOut(cmd, stat);
 		
@@ -453,8 +630,8 @@ void handOff (command* cmd, status* stat) {
 	else if ( (cmd->input == 1) && (cmd->output == 0) )
 	{
 		//Handle input redirection
-		printf("Doing an input redirection command execution!\n");
-		fflush(stdout);
+		//printf("Doing an input redirection command execution!\n");
+		//fflush(stdout);
 		
 		handOffIn(cmd, stat);
 		
@@ -462,13 +639,12 @@ void handOff (command* cmd, status* stat) {
 	else if ( (cmd->input == 1) && (cmd->output == 1) )
 	{
 		//Handle both redirecting input and output.
-		printf("Doing a double redirection command execution!\n");
-		fflush(stdout);
+		//printf("Doing a double redirection command execution!\n");
+		//fflush(stdout);
 		
 		handOffBoth(cmd, stat);
 	}
 }
-
 
 
 
@@ -489,10 +665,15 @@ int main() {
 	status stat;																							//Keeps track of the exit status of a previous command/program (can be a terminiation signal?).
 	stat.status = 0;																						//Starts at 0
 	stat.signal = 0;																						//Set to zero, because there is no signal with 0 (Basically uninitialized).
+	stat.bgNum = 0;																							//Set to zero, because there are no background processes currently
+	memset(stat.bgPid, '\0', sizeof(stat.bgPid));															//Set the array of background process id's to NULL becaus there arent any.
 	
 	
 	while (again == 0) 																						//Repeat prompting and handling commands
 	{
+		//Before prompting for user input we need to check for finished background processes.
+		waitBg(&stat);
+		
 		//Prompt user for input
 		prompt(&cmd);
 		//printCommand(cmd);
