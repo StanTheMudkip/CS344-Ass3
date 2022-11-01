@@ -158,6 +158,117 @@ void waitBg(status* stat) {
 	}
 }
 
+char* expandString(char* token) {
+	int currPid = getpid();
+	
+	char* clone = token;
+	
+	char* ret;
+	char pidBuff[20];
+	//Convert the currPid to a string
+	sprintf(pidBuff, "%lld", currPid);
+	
+	//int diff;
+	size_t diff;
+	
+	int finish = 0;
+
+	char result[2000];
+	memset(result, '\0', sizeof(result));
+	
+	char* temp2;
+	
+	char temp1[2000];
+	memset(temp1, '\0', sizeof(temp1));
+	
+	//Search if this string needs to be expanded. For the first time
+	ret = strstr(clone, "$$");
+	
+	
+	
+	//Perhaps use a do while? With an if statement?
+	do
+	{
+		
+		//If $$ was found
+		if(ret)
+		{
+			//calculate difference between the start of the string and where the $$ sign is if it exists.
+			diff = ret - clone;
+			
+			//printf("The $$ is found at index: %d\n", diff);
+			//fflush(stdout);
+			
+			//Copy that difference into a temp string if its not 0
+			if(diff != 0)
+			{
+				//Clear temp1
+				memset(temp1, '\0', sizeof(temp1));
+				//Copy what we want
+				strncpy(temp1, clone, diff);
+				//Cat that to results
+				strcat(result, temp1);
+			}
+
+			
+			//Cat it into the results
+			strcat(result, pidBuff);
+			
+			//Now add the rest of the string to the result.
+			ret += 2;																							//Move the start of return just past the $$
+			
+			//Check if there is anything past the $$
+			if(ret != NULL)
+			{
+				//strcat(result, ret);
+			}
+			//If there is nothing we need to break out of the loop
+			else
+			{
+				break;
+			}
+			
+			//printf("result is now: %s\n", result);
+			//fflush(stdout);
+			
+			//Update the token to point to the next part of the token to check for $$
+			//token = (ret - 2);
+			//token = result;
+			clone = ret;
+			finish = 1;
+			
+			//printf("token is now: %s\n", clone);
+			//fflush(stdout);
+		}
+		
+	} while( (ret = strstr(clone, "$$")) != NULL );
+	
+	//Allocate memory for this argument and return it
+	if(finish == 1)
+	{
+		temp2 = malloc(sizeof(strlen(result)) );
+		memset( temp2, '\0', sizeof(temp2) );																	//Clears the allocated string memory for copying.
+		strcpy(temp2, result);
+	}
+	else
+	{
+		temp2 = malloc(sizeof(strlen(token)) );
+		memset( temp2, '\0', sizeof(temp2) );																	//Clears the allocated string memory for copying.
+		strcpy(temp2, token);
+	}
+	
+	//printf("Clone is: %s\n", clone);
+	//fflush(stdout);
+	
+	//printf("Token is: %s\n", token);
+	//fflush(stdout);
+	
+	//printf("Formatted argument string is now: %s\n", temp2);
+	//fflush(stdout);
+	
+	return temp2;
+}
+
 void prompt(command* cmd) {
 	//NEED TO RESET THE COMMAND CMD SO THAT IT WONT JUST CONTAIN THE PREVIOUS COMMAND'S ARGUMENTS/VALUES AND STUFF AND TO NOT LEAK MEMORY!!!!!!!!
 	freeCommand(cmd);
@@ -192,13 +303,20 @@ void prompt(command* cmd) {
 	
 	while(token != NULL) 
 	{
-		//Grab and store the data in the cmd struct
+		//Check this argument for $$ and expand
+		cmd->argv[cmd->argc] = expandString(token);
+		
+		
+		/*Grab and store the data in the cmd struct
 		cmd->argv[cmd->argc] = malloc( sizeof(strlen(token)) ); 											//allocate memory for the new command
 		memset( cmd->argv[cmd->argc], '\0', sizeof(cmd->argv[cmd->argc]) );									//Clears the allocated string memory for copying.
-		strcpy(cmd->argv[cmd->argc], token);									
-		cmd->argc += 1;																						//increment the number of arguments
+		strcpy(cmd->argv[cmd->argc], token);
+		*/
 		
-		token = token = strtok_r(NULL, " ", &saveptr); 														//Grab the next argument (if it doesnt exist it will be NULL)
+		cmd->argc += 1;																						//increment the number of arguments
+		//
+		
+		token = strtok_r(NULL, " ", &saveptr); 																//Grab the next argument (if it doesnt exist it will be NULL)
 		
 		/*Prints each token that is aquired.
 		if(token != NULL) 
@@ -212,8 +330,8 @@ void prompt(command* cmd) {
 	//Set the last cmd argument to NULL for if/when we call the process in an exec
 	cmd->argv[cmd->argc] = NULL;
 	
-	printf("Checking if there is a background process!\n");
-	fflush(stdout);
+	//printf("Checking if there is a background process!\n");
+	//fflush(stdout);
 	
 	//Check if this needs to be set as a background process? ( '&' the background notifier will always be the last argument of each command besides NULL.)
 	if( !strcmp(cmd->argv[cmd->argc - 1], "&") )															//Check if the & exists at the end of the command!
@@ -692,8 +810,8 @@ int main() {
 			//This is where we can check for our versions of cd, exit, and status
 			if( !strcmp(cmd.argv[0], "exit") )																//If we enter exit, we just exit the shell (aka this program/process)
 			{
-				printf("EXITING smallsh Session!\n");
-				fflush(stdout);
+				//printf("EXITING smallsh Session!\n");
+				//fflush(stdout);
 				again = 1;
 				return 0;
 			}
