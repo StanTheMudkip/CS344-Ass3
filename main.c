@@ -121,11 +121,11 @@ void waitBg(status* stat) {
 				fflush(stdout);
 				
 				//Get rid of the Pid of the finished process in the array
-				/*
+				//
 				for(int j = i; j < (stat->bgNum - 1); j++)
 				{
 					//check if the next pid is NULL
-					if(stat->bgPid[j + 1] != NULL)
+					if(stat->bgPid[j + 1])
 					{
 						//Move the next pid down an index
 						stat->bgPid[j] = stat->bgPid[j + 1];
@@ -136,13 +136,18 @@ void waitBg(status* stat) {
 						break;
 					}
 				}
-				*/
+				//
 				stat->bgNum -= 1;																			//Decrement the amount of processes running
 				
 				//Check if the exit status is something we can interpret
 				if( WIFSIGNALED(stat->status) )
 				{
 					printf("terminated by signal %d\n", WTERMSIG(stat->status) );
+					fflush(stdout);
+				}
+				else
+				{
+					printf("exit value %d\n", stat->status);
 					fflush(stdout);
 				}
 				
