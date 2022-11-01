@@ -350,8 +350,8 @@ void handOffExec (command* cmd, status* stat) {
 			else
 			{
 				//Save the process id of this parent so we can reap the corpse in the actual shell.
-				stat->bgPid[stat->bgNum - 1] = spawnPid; 
-				stat->bgNum += 1; 
+				stat->bgNum += 1;
+				stat->bgPid[stat->bgNum - 1] = spawnPid;  
 			}															//Wait for the child's exit status and save it in the status struct.
 		
 	}
@@ -430,8 +430,9 @@ void handOffOut(command* cmd, status* stat) {
 			else
 			{
 				//Save the process id of this parent so we can reap the corpse in the actual shell.
-				stat->bgPid[stat->bgNum - 1] = spawnPid; 
 				stat->bgNum += 1; 
+				stat->bgPid[stat->bgNum - 1] = spawnPid; 
+				
 			}
 	}
 }
@@ -508,8 +509,9 @@ void handOffIn(command* cmd, status* stat) {
 			else
 			{
 				//Save the process id of this parent so we can reap the corpse in the actual shell.
-				stat->bgPid[stat->bgNum - 1] = spawnPid; 
 				stat->bgNum += 1; 
+				stat->bgPid[stat->bgNum - 1] = spawnPid; 
+				
 			}														//Wait for the child's exit status and save it in the status struct.
 		
 	}
@@ -599,8 +601,9 @@ void handOffBoth(command* cmd, status* stat) {
 			else
 			{
 				//Save the process id of this parent so we can reap the corpse in the actual shell.
-				stat->bgPid[stat->bgNum - 1] = spawnPid; 
 				stat->bgNum += 1; 
+				stat->bgPid[stat->bgNum - 1] = spawnPid; 
+				
 			}
 
 	}
