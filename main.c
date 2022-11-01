@@ -571,7 +571,7 @@ void handOffIn(command* cmd, status* stat) {
 		printf("Error: Was not able to open file: %s\n", cmd->argv[cmd->iIdx + 1]);
 		fflush(stdout);
 		stat->status = 1;
-		exit(1);
+		//exit(1);
 	}
 	
 	//Now fork and execute the command
@@ -650,7 +650,7 @@ void handOffBoth(command* cmd, status* stat) {
 		printf("Error: Was not able to open file: %s\n", cmd->argv[cmd->iIdx + 1]);
 		fflush(stdout);
 		stat->status = 1;
-		exit(1);
+		//exit(1);
 	}
 	
 	int file_descriptor2;
