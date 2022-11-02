@@ -78,7 +78,7 @@ void printmyStatus(status stat) {
 	else 
 	{
 		//If no signal was recieved print out the exit status
-		printf("Exit status of: %d\n", stat.status);
+		printf("Exit status of: %d\n", WEXITSTATUS(stat.status) );
 		fflush(stdout);
 	}
 }
@@ -159,6 +159,7 @@ void waitBg(status* stat) {
 }
 
 char* expandString(char* token) {
+	//This is a mess
 	int currPid = getpid();
 	
 	char* clone = token;
