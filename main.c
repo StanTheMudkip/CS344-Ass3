@@ -18,6 +18,9 @@
 #include <sys/wait.h>
 #include <signal.h>
 
+//**Global Variable
+sig_atomic_t SIGTSTPFlag = 0; 																				//Set a global bool/flag for keeping track of what mode we are in
+
 
 //**STRUCTS:
 //defines command as a standard type for use
@@ -62,7 +65,7 @@ void freeCommand(command* cmd)
 typedef struct state status;
 struct state {
 	int status;																								//Keeps track of the exit status of a previous command/program 
-	int signal;																								//Keeps track of the termination signal of the previous command/program
+	int signal;																								//Keeps track if we have recieved the CTRL-Z signal an is a bool/toggle
 	int bgNum;																								//Keeps track of how many bg processes are currently running.
 	pid_t bgPid[20];																						//Keeps hold of 20 background process ID's
 };
@@ -228,7 +231,7 @@ char* expandString(char* token) {
 			strcat(result, pidBuff);
 			
 			//Now add the rest of the string to the result.
-			ret += 2;																							//Move the start of return just past the $$
+			ret += 2;																						//Move the start of return just past the $$
 			
 			//Check if there is anything past the $$
 			if(ret != NULL)
@@ -260,13 +263,13 @@ char* expandString(char* token) {
 	if(finish == 1)
 	{
 		temp2 = malloc(sizeof(strlen(result)) );
-		memset( temp2, '\0', sizeof(temp2) );																	//Clears the allocated string memory for copying.
+		memset( temp2, '\0', sizeof(temp2) );																//Clears the allocated string memory for copying.
 		strcpy(temp2, result);
 	}
 	else
 	{
 		temp2 = malloc(sizeof(strlen(token)) );
-		memset( temp2, '\0', sizeof(temp2) );																	//Clears the allocated string memory for copying.
+		memset( temp2, '\0', sizeof(temp2) );																//Clears the allocated string memory for copying.
 		strcpy(temp2, token);
 	}
 	
@@ -347,24 +350,27 @@ void prompt(command* cmd) {
 	//fflush(stdout);
 	
 	//Check if this needs to be set as a background process? ( '&' the background notifier will always be the last argument of each command besides NULL.)
-	if( !strcmp(cmd->argv[cmd->argc - 1], "&") )															//Check if the & exists at the end of the command!
+	if( cmd->argc != 0)
 	{
-		//Set the background process bool to true.
-		cmd->bg = 1;
-		
-		//Make sure we get rid of the & so it isnt used as an argument when we execute the command.
-		free(cmd->argv[cmd->argc - 1]);
-		//Now change it to NULL so we know where the arguments end.
-		cmd->argv[cmd->argc - 1] = NULL;
-		
-		//Make sure to lower the argument count by one because & isn't an argument.
-		cmd->argc -= 1;																
-	}
-	//If the & hasn't been found
-	else
-	{
-		//Set the background process bool to false.
-		cmd->bg = 0;
+		if( !strcmp(cmd->argv[cmd->argc - 1], "&") )															//Check if the & exists at the end of the command!
+		{
+			//Set the background process bool to true.
+			cmd->bg = 1;
+			
+			//Make sure we get rid of the & so it isnt used as an argument when we execute the command.
+			free(cmd->argv[cmd->argc - 1]);
+			//Now change it to NULL so we know where the arguments end.
+			cmd->argv[cmd->argc - 1] = NULL;
+			
+			//Make sure to lower the argument count by one because & isn't an argument.
+			cmd->argc -= 1;																
+		}
+		//If the & hasn't been found
+		else
+		{
+			//Set the background process bool to false.
+			cmd->bg = 0;
+		}
 	}
 	
 	//Check if we need to do any redirection
@@ -443,6 +449,9 @@ void handOffExec (command* cmd, status* stat) {
 	struct sigaction SIGINT_default = {0};
 	SIGINT_default.sa_handler = SIG_DFL;
 	
+	struct sigaction SIGTSTP_ignore = {0};
+	SIGTSTP_ignore.sa_handler = SIG_IGN;
+	
 	fflush(stdout);																							//Flush the stdout buffer before forking
 	pid_t spawnPid = fork();																				//Create a child and become a parent
 	switch(spawnPid)
@@ -450,9 +459,11 @@ void handOffExec (command* cmd, status* stat) {
 		case 0:
 		//This is the little baby spawnling child 
 		
+			//Ignore SIGTSTP no matter if we are a bg or fg
+			sigaction(SIGTSTP, &SIGTSTP_ignore, NULL);
 		
 			//Check if this is a background process
-			if( cmd->bg == 1)
+			if( (cmd->bg == 1) && (SIGTSTPFlag == 0) )
 			{
 				//Open up a tear in space time and send the data into the abyss.
 				file_descriptor = open("/dev/null",O_WRONLY);
@@ -512,6 +523,9 @@ void handOffOut(command* cmd, status* stat) {
 	struct sigaction SIGINT_default = {0};
 	SIGINT_default.sa_handler = SIG_DFL;
 	
+	struct sigaction SIGTSTP_ignore = {0};
+	SIGTSTP_ignore.sa_handler = SIG_IGN;
+	
 	fflush(stdout);																							//Flush the stdout buffer before forking
 	pid_t spawnPid = fork();																				//Create a child and become a parent
 	switch(spawnPid)
@@ -526,8 +540,11 @@ void handOffOut(command* cmd, status* stat) {
 			}
 			*/
 			
+			//Ignore SIGTSTP no matter if we are a bg or fg
+			sigaction(SIGTSTP, &SIGTSTP_ignore, NULL);
+			
 			//Check if this is a background process
-			if( cmd->bg == 1)
+			if( (cmd->bg == 1) && (SIGTSTPFlag == 0) )
 			{
 				//Open up a tear in space time and send the data into the abyss.
 				file_descriptor2 = open("/dev/null",O_WRONLY);
@@ -587,8 +604,8 @@ void handOffOut(command* cmd, status* stat) {
 				//Save the process id of this parent so we can reap the corpse in the actual shell.
 				stat->bgNum += 1; 
 				stat->bgPid[stat->bgNum - 1] = spawnPid; 
-				
-				printf("background pid created: %d\n", (int) spawnPid );								//Print out that the background process has finished.
+					
+				printf("background pid created: %d\n", (int) spawnPid );									//Print out that the background process has finished.
 				fflush(stdout);
 				
 			}
@@ -600,6 +617,9 @@ void handOffIn(command* cmd, status* stat) {
 	
 	struct sigaction SIGINT_default = {0};
 	SIGINT_default.sa_handler = SIG_DFL;
+	
+	struct sigaction SIGTSTP_ignore = {0};
+	SIGTSTP_ignore.sa_handler = SIG_IGN;
 	
 	int file_descriptor = open(cmd->argv[cmd->iIdx + 1], O_RDONLY); 										//Open the given file name
 	int file_descriptor2;
@@ -620,8 +640,11 @@ void handOffIn(command* cmd, status* stat) {
 		case 0:
 		//This is the little baby spawnling child 
 			
+			//Ignore SIGTSTP no matter if we are a bg or fg
+			sigaction(SIGTSTP, &SIGTSTP_ignore, NULL);
+			
 			//Check if this is a background process
-			if( cmd->bg == 1)
+			if( (cmd->bg == 1) && (SIGTSTPFlag == 0) )
 			{
 				//Open up a tear in space time and send the data into the abyss.
 				file_descriptor2 = open("/dev/null",O_WRONLY);
@@ -678,7 +701,7 @@ void handOffIn(command* cmd, status* stat) {
 				stat->bgNum += 1; 
 				stat->bgPid[stat->bgNum - 1] = spawnPid; 
 				
-				printf("background pid created: %d\n", (int) spawnPid );								//Print out that the background process has finished.
+				printf("background pid created: %d\n", (int) spawnPid );									//Print out that the background process has finished.
 				fflush(stdout);
 				
 			}														//Wait for the child's exit status and save it in the status struct.
@@ -691,6 +714,9 @@ void handOffBoth(command* cmd, status* stat) {
 	
 	struct sigaction SIGINT_default = {0};
 	SIGINT_default.sa_handler = SIG_DFL;
+	
+	struct sigaction SIGTSTP_ignore = {0};
+	SIGTSTP_ignore.sa_handler = SIG_IGN;
 	
 	int file_descriptor1 = open(cmd->argv[cmd->iIdx + 1], O_RDONLY); 										//Open the given file name
 	//Check if it opened properly
@@ -713,8 +739,11 @@ void handOffBoth(command* cmd, status* stat) {
 		case 0:
 		//This is the little baby spawnling child 
 			
+			//Ignore SIGTSTP no matter if we are a bg or fg
+			sigaction(SIGTSTP, &SIGTSTP_ignore, NULL);
+			
 			//Check if this is a background process
-			if( cmd->bg == 1)
+			if( (cmd->bg == 1) && (SIGTSTPFlag == 0) )
 			{
 				//Open up a tear in space time and send the data into the abyss.
 				file_descriptor3 = open("/dev/null",O_WRONLY);
@@ -783,7 +812,7 @@ void handOffBoth(command* cmd, status* stat) {
 				stat->bgNum += 1; 
 				stat->bgPid[stat->bgNum - 1] = spawnPid; 
 
-				printf("background pid created: %d\n", (int) spawnPid );								//Print out that the background process has finished.
+				printf("background pid created: %d\n", (int) spawnPid );									//Print out that the background process has finished.
 				fflush(stdout);
 				
 			}
@@ -832,19 +861,32 @@ void handOff (command* cmd, status* stat) {
 }
 
 
-void catchSIGINT(int signo)
-{
-	char* message = "Caught SIGINT, sleeping for 5 seconds\n";
-	write(STDOUT_FILENO, message, 38);
-	sleep(5);
+void handle_SIGTSTP(int signo) {
+	
+	//char* message = "Entering foreground-only mode (& is now ignored)\n";
+    //write(STDOUT_FILENO, message, 49);
+	
+	
+    if (SIGTSTPFlag == 0)
+	{
+		//If we are anot in foreground mode
+        char* msg1 = "Entering foreground-only mode (& is now ignored)\n";
+        SIGTSTPFlag = 1;
+        write(STDOUT_FILENO, msg1, 49);
+    }
+    else
+	{
+		//If we are in foreground mode
+        char* msg2 = "Exiting foreground-only mode\n";
+        SIGTSTPFlag = 0;
+        write(STDOUT_FILENO, msg2, 29);
+    }
+	
 }
-
-
-
 
 int main() {
 	//Signaaction structure setup
-	struct sigaction SIGINT_default = {0}, SIGINT_ignore = {0}, SIGSTP_action = {0};
+	struct sigaction SIGINT_default = {0}, SIGINT_ignore = {0}, SIGTSTP_action = {0};
 
 	SIGINT_default.sa_handler = SIG_DFL;
 	SIGINT_ignore.sa_handler = SIG_IGN;
@@ -852,6 +894,12 @@ int main() {
 	//Ignore CTRL-C
 	sigaction(SIGINT, &SIGINT_ignore, NULL);
 	
+	SIGTSTP_action.sa_handler = handle_SIGTSTP;																//Point the handler to my handler function
+	sigfillset(&SIGTSTP_action.sa_mask);																	//Ignore all flags when the handler is run
+	SIGTSTP_action.sa_flags = 0;
+	
+	//Catch CTRL-Z
+	sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 	
 	
 	command cmd;																							//Create an instance of my command struct
@@ -881,39 +929,43 @@ int main() {
 		//printCommand(cmd);
 		
 		//check if the command (first argument) is a newline and (first charcter of the first argument) is a comment!
-		if( strcmp(cmd.argv[0], "\n") && (cmd.argv[0][0] != '#') )
+		if( cmd.argc != 0)
 		{
-			//This is where we can check for our versions of cd, exit, and status
-			if( !strcmp(cmd.argv[0], "exit") )																//If we enter exit, we just exit the shell (aka this program/process)
+			if( strcmp(cmd.argv[0], "\n") && (cmd.argv[0][0] != '#') )
 			{
-				//printf("EXITING smallsh Session!\n");
-				//fflush(stdout);
-				again = 1;
-				return 0;
-			}
-			else if( !strcmp(cmd.argv[0], "cd") )
-			{
-				//Perform my version of changing the directory
-				
-				//printf("Changing Directory\n");
-				//fflush(stdout);
-				myCD(&cmd);																					//Pass myCD the commmand.
-			}
-			else if( !strcmp(cmd.argv[0], "status") )
-			{
-				//Print the status of the previously executed command/program (can be a terminiation signal?)
-				
-				//printf("Showing status\n");
-				//fflush(stdout);
-				printmyStatus(stat);
-			}
-			else 
-			{
-				//Then handle other commands
-				
-				//printf("Passing off command to shell/OS?\n");
-				//fflush(stdout);
-				handOff(&cmd, &stat);																		//Decide how to hand off the command to the OS/Shell
+				//This is where we can check for our versions of cd, exit, and status
+				if( !strcmp(cmd.argv[0], "exit") )																//If we enter exit, we just exit the shell (aka this program/process)
+				{
+					//printf("EXITING smallsh Session!\n");
+					//fflush(stdout);
+					again = 1;
+					return 0;
+				}
+				else if( !strcmp(cmd.argv[0], "cd") )
+				{
+					//Perform my version of changing the directory
+					
+					//printf("Changing Directory\n");
+					//fflush(stdout);
+					myCD(&cmd);																					//Pass myCD the commmand.
+				}
+				else if( !strcmp(cmd.argv[0], "status") )
+				{
+					//Print the status of the previously executed command/program (can be a terminiation signal?)
+					
+					//printf("Showing status\n");
+					//fflush(stdout);
+					printmyStatus(stat);
+				}
+				else 
+				{
+					//Then handle other commands
+					
+					//printf("Passing off command to shell/OS?\n");
+					//fflush(stdout);
+					handOff(&cmd, &stat);																		//Decide how to hand off the command to the OS/Shell
+				}
+			
 			}
 		
 		}
