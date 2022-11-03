@@ -69,16 +69,28 @@ struct state {
 
 void printmyStatus(status stat) {
 	//Check if there a termination signal was recieved with the last process
+	/*
 	if( stat.signal != 0 )
 	{
 		//If a signal was termination recieved from the last process, print out the singal number.
-		printf("Terminated by signal: %d\n", stat.status);
+		printf("Terminated by signal: %d\n", WTERMSIG(stat.status) );
 		fflush(stdout);
 	}
 	else 
 	{
 		//If no signal was recieved print out the exit status
 		printf("Exit status of: %d\n", WEXITSTATUS(stat.status) );
+		fflush(stdout);
+	}
+	*/
+	if( WIFSIGNALED(stat.status) )
+	{
+		printf("Terminated by signal: %d\n", WTERMSIG(stat.status) );
+		fflush(stdout);
+	}
+	else
+	{
+		printf("Exit status of: %d\n", WEXITSTATUS(stat.status));
 		fflush(stdout);
 	}
 }
@@ -428,6 +440,9 @@ void myCD(command* cmd) {
 void handOffExec (command* cmd, status* stat) {
 	int file_descriptor;
 	
+	struct sigaction SIGINT_default = {0};
+	SIGINT_default.sa_handler = SIG_DFL;
+	
 	fflush(stdout);																							//Flush the stdout buffer before forking
 	pid_t spawnPid = fork();																				//Create a child and become a parent
 	switch(spawnPid)
@@ -446,6 +461,11 @@ void handOffExec (command* cmd, status* stat) {
 				dup2(file_descriptor, 1);
 				//Redirect sterr (2) to the void
 				dup2(file_descriptor, 2);
+			}
+			else
+			{
+				//If not a background process make it so we can CTRL-C this foreground process
+				sigaction(SIGINT, &SIGINT_default, NULL);
 			}
 		
 		
@@ -489,6 +509,9 @@ void handOffOut(command* cmd, status* stat) {
 	int file_descriptor;
 	int file_descriptor2;
 	
+	struct sigaction SIGINT_default = {0};
+	SIGINT_default.sa_handler = SIG_DFL;
+	
 	fflush(stdout);																							//Flush the stdout buffer before forking
 	pid_t spawnPid = fork();																				//Create a child and become a parent
 	switch(spawnPid)
@@ -513,6 +536,11 @@ void handOffOut(command* cmd, status* stat) {
 				dup2(file_descriptor2, 1);
 				//Redirect sterr (2) to the void
 				dup2(file_descriptor2, 2);
+			}
+			else
+			{
+				//If not a background process make it so we can CTRL-C this foreground process
+				sigaction(SIGINT, &SIGINT_default, NULL);
 			}
 			
 			file_descriptor = open(cmd->argv[cmd->oIdx + 1], O_WRONLY | O_CREAT | O_TRUNC, 0660); 			//Open the given file name
@@ -570,6 +598,9 @@ void handOffOut(command* cmd, status* stat) {
 void handOffIn(command* cmd, status* stat) {
 	//Need to redirect input of the command from a file that is given.
 	
+	struct sigaction SIGINT_default = {0};
+	SIGINT_default.sa_handler = SIG_DFL;
+	
 	int file_descriptor = open(cmd->argv[cmd->iIdx + 1], O_RDONLY); 										//Open the given file name
 	int file_descriptor2;
 	//Check if it opened properly
@@ -599,6 +630,11 @@ void handOffIn(command* cmd, status* stat) {
 				dup2(file_descriptor2, 1);
 				//Redirect sterr (2) to the void
 				dup2(file_descriptor2, 2);
+			}
+			else
+			{
+				//If not a background process make it so we can CTRL-C this foreground process
+				sigaction(SIGINT, &SIGINT_default, NULL);
 			}
 			
 			//remove the two arguments from the command so they arent taken as arguments to the ACTUAL COMMAND
@@ -653,6 +689,9 @@ void handOffIn(command* cmd, status* stat) {
 void handOffBoth(command* cmd, status* stat) {
 	//Need to redirect input of the command from a file that is given.
 	
+	struct sigaction SIGINT_default = {0};
+	SIGINT_default.sa_handler = SIG_DFL;
+	
 	int file_descriptor1 = open(cmd->argv[cmd->iIdx + 1], O_RDONLY); 										//Open the given file name
 	//Check if it opened properly
 	if(file_descriptor1 == -1)
@@ -685,6 +724,13 @@ void handOffBoth(command* cmd, status* stat) {
 				//Redirect sterr (2) to the void
 				dup2(file_descriptor3, 2);
 			}
+			else
+			{
+				//If not a background process make it so we can CTRL-C this foreground process
+				sigaction(SIGINT, &SIGINT_default, NULL);
+			}
+		
+			
 			
 			//remove the two arguments from the command so they arent taken as arguments to the ACTUAL COMMAND
 			cmd->argv[cmd->iIdx + 1] = NULL;
@@ -786,13 +832,25 @@ void handOff (command* cmd, status* stat) {
 }
 
 
+void catchSIGINT(int signo)
+{
+	char* message = "Caught SIGINT, sleeping for 5 seconds\n";
+	write(STDOUT_FILENO, message, 38);
+	sleep(5);
+}
 
 
 
 
 int main() {
 	//Signaaction structure setup
-	struct sigaction SIGINT_action = {0}, SIGSTP_action = {0};
+	struct sigaction SIGINT_default = {0}, SIGINT_ignore = {0}, SIGSTP_action = {0};
+
+	SIGINT_default.sa_handler = SIG_DFL;
+	SIGINT_ignore.sa_handler = SIG_IGN;
+	
+	//Ignore CTRL-C
+	sigaction(SIGINT, &SIGINT_ignore, NULL);
 	
 	
 	
