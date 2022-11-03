@@ -37,6 +37,14 @@ struct cmmd {
 };
 
 //Destructor
+/******************************************************************
+ * * ** Function: freeCommand(command* cmd)
+ * ** Description: Destructs and free's a command structure's heap memmory
+ * ** Parameters: command* cmd
+ * ** Pre-conditions: Given a heaped command
+ * ** Post-conditions: Free's the command
+ * *******************************************************************
+ */
 void freeCommand(command* cmd)
 {
 	//Go through all the arguments starting from the last argument.
@@ -70,6 +78,15 @@ struct state {
 	pid_t bgPid[20];																						//Keeps hold of 20 background process ID's
 };
 
+
+/******************************************************************
+ * * ** Function: printmyStatus(status stat)
+ * ** Description: Prints the exit/termination status of a status structure
+ * ** Parameters: status stat
+ * ** Pre-conditions: 
+ * ** Post-conditions: 
+ * *******************************************************************
+ */
 void printmyStatus(status stat) {
 	//Check if there a termination signal was recieved with the last process
 	/*
@@ -100,6 +117,14 @@ void printmyStatus(status stat) {
 
 
 //**FUNCTIONS:
+/******************************************************************
+ * * ** Function: printStr(char* str)
+ * ** Description: Prints the given string with fflush
+ * ** Parameters: char* str
+ * ** Pre-conditions: Given an actual NULL terminated string
+ * ** Post-conditions: Prints it out to stdout and flushes the buffer
+ * *******************************************************************
+ */
 void printStr(char* str) {
 	printf("%s\n", str);
 	fflush(stdout);
@@ -117,6 +142,14 @@ void printCommand(command cmd) {
 	fflush(stdout);
 }
 
+/******************************************************************
+ * * ** Function: waitBg(status* stat)
+ * ** Description: Takes a status struct and checks if a background processe has finished execution and prints out the exit/termination status.
+ * ** Parameters: status* stat
+ * ** Pre-conditions: 
+ * ** Post-conditions: 
+ * *******************************************************************
+ */
 void waitBg(status* stat) {
 	//Check if we actually have any processes in the background.
 	//printf("In waitBg!\n");
@@ -173,6 +206,14 @@ void waitBg(status* stat) {
 	}
 }
 
+/******************************************************************
+ * * ** Function: expandString(char* token)
+ * ** Description: Parses through a string searching for $$ and expands it to the shell's Pid and allocates heap memeory for the expanded string.
+ * ** Parameters: status* stat
+ * ** Pre-conditions: 
+ * ** Post-conditions: Returns the expanded string
+ * *******************************************************************
+ */
 char* expandString(char* token) {
 	//This is a mess
 	int currPid = getpid();
@@ -285,6 +326,14 @@ char* expandString(char* token) {
 	return temp2;
 }
 
+/******************************************************************
+ * * ** Function: prompt(command* cmd)
+ * ** Description: Prompts the user for input and parses through the input and sets necessary flags and insterst data into the command struct.
+ * ** Parameters: command* cmd
+ * ** Pre-conditions: 
+ * ** Post-conditions:
+ * *******************************************************************
+ */
 void prompt(command* cmd) {
 	//NEED TO RESET THE COMMAND CMD SO THAT IT WONT JUST CONTAIN THE PREVIOUS COMMAND'S ARGUMENTS/VALUES AND STUFF AND TO NOT LEAK MEMORY!!!!!!!!
 	freeCommand(cmd);
@@ -352,7 +401,7 @@ void prompt(command* cmd) {
 	//Check if this needs to be set as a background process? ( '&' the background notifier will always be the last argument of each command besides NULL.)
 	if( cmd->argc != 0)
 	{
-		if( !strcmp(cmd->argv[cmd->argc - 1], "&") )															//Check if the & exists at the end of the command!
+		if( !strcmp(cmd->argv[cmd->argc - 1], "&") )														//Check if the & exists at the end of the command!
 		{
 			//Set the background process bool to true.
 			cmd->bg = 1;
@@ -406,6 +455,14 @@ void prompt(command* cmd) {
 	
 }
 
+/******************************************************************
+ * * ** Function: myCD(command* cmd)
+ * ** Description: Moves to a specified directory based on user input.
+ * ** Parameters: command* cmd
+ * ** Pre-conditions: 
+ * ** Post-conditions: Working directory is moved if found.
+ * *******************************************************************
+ */
 void myCD(command* cmd) {
 	//Check if we actually have a second argument to cd
 	if(cmd->argv[1] != NULL)
@@ -443,6 +500,14 @@ void myCD(command* cmd) {
 	}
 }
 
+/******************************************************************
+ * * ** Function: handOffExec (command* cmd, status* stat)
+ * ** Description: Hand's off a cmd to be executed and changes the I/O of a child based on the command's background flag.
+ * ** Parameters: command* cmd, status* stat
+ * ** Pre-conditions: 
+ * ** Post-conditions: 
+ * *******************************************************************
+ */
 void handOffExec (command* cmd, status* stat) {
 	int file_descriptor;
 	
@@ -497,24 +562,32 @@ void handOffExec (command* cmd, status* stat) {
 		default:
 		//This is the parent
 			//Check if this a background process
-			if(cmd->bg != 1)
-			{
-				//Need to wait and listen for the child's exit status!
-				waitpid(spawnPid, &stat->status, 0);														//Wait for the child's exit status and save it in the status struct.
-			}	
-			else
+			if( (cmd->bg == 1) && (SIGTSTPFlag == 0) )
 			{
 				//Save the process id of this parent so we can reap the corpse in the actual shell.
 				stat->bgNum += 1;
 				stat->bgPid[stat->bgNum - 1] = spawnPid;  
 				
-				printf("background pid created: %d\n", (int) spawnPid );										//Print out that the background process has finished.
+				printf("background pid created: %d\n", (int) spawnPid );									//Print out that the background process has finished.
 				fflush(stdout);
-			}																								//Wait for the child's exit status and save it in the status struct.
+			}	
+			else
+			{
+				//Need to wait and listen for the child's exit status!
+				waitpid(spawnPid, &stat->status, 0);														//Wait for the child's exit status and save it in the status struct.
+			}																								
 		
 	}
 }
 
+/******************************************************************
+ * * ** Function: handOffOut (command* cmd, status* stat)
+ * ** Description: Hand's off a cmd to be executed and changes the I/O of a child based on the command's flags and changes output to a specified file.
+ * ** Parameters: command* cmd, status* stat
+ * ** Pre-conditions: 
+ * ** Post-conditions: 
+ * *******************************************************************
+ */
 void handOffOut(command* cmd, status* stat) {
 	//Need to redirect output of the command to a file that is given.
 	int file_descriptor;
@@ -594,24 +667,31 @@ void handOffOut(command* cmd, status* stat) {
 		default:
 		//This is the parent
 			//Check if this a background process
-			if(cmd->bg != 1)
+			if( (cmd->bg == 1) && (SIGTSTPFlag == 0) )
 			{
-				//Need to wait and listen for the child's exit status!
-				waitpid(spawnPid, &stat->status, 0);														//Wait for the child's exit status and save it in the status struct.
+				//Save the process id of this parent so we can reap the corpse in the actual shell.
+				stat->bgNum += 1;
+				stat->bgPid[stat->bgNum - 1] = spawnPid;  
+				
+				printf("background pid created: %d\n", (int) spawnPid );									//Print out that the background process has finished.
+				fflush(stdout);
 			}	
 			else
 			{
-				//Save the process id of this parent so we can reap the corpse in the actual shell.
-				stat->bgNum += 1; 
-				stat->bgPid[stat->bgNum - 1] = spawnPid; 
-					
-				printf("background pid created: %d\n", (int) spawnPid );									//Print out that the background process has finished.
-				fflush(stdout);
-				
+				//Need to wait and listen for the child's exit status!
+				waitpid(spawnPid, &stat->status, 0);														//Wait for the child's exit status and save it in the status struct.
 			}
 	}
 }
 
+/******************************************************************
+ * * ** Function: handOffIn (command* cmd, status* stat)
+ * ** Description: Hand's off a cmd to be executed and changes the I/O of a child based on the command's flags and changes input to a specified file.
+ * ** Parameters: command* cmd, status* stat
+ * ** Pre-conditions: 
+ * ** Post-conditions: 
+ * *******************************************************************
+ */
 void handOffIn(command* cmd, status* stat) {
 	//Need to redirect input of the command from a file that is given.
 	
@@ -690,25 +770,32 @@ void handOffIn(command* cmd, status* stat) {
 		default:
 		//This is the parent
 			//Check if this a background process
-			if(cmd->bg != 1)
-			{
-				//Need to wait and listen for the child's exit status!
-				waitpid(spawnPid, &stat->status, 0);														//Wait for the child's exit status and save it in the status struct.
-			}	
-			else
+			if( (cmd->bg == 1) && (SIGTSTPFlag == 0) )
 			{
 				//Save the process id of this parent so we can reap the corpse in the actual shell.
-				stat->bgNum += 1; 
-				stat->bgPid[stat->bgNum - 1] = spawnPid; 
+				stat->bgNum += 1;
+				stat->bgPid[stat->bgNum - 1] = spawnPid;  
 				
 				printf("background pid created: %d\n", (int) spawnPid );									//Print out that the background process has finished.
 				fflush(stdout);
-				
-			}														//Wait for the child's exit status and save it in the status struct.
+			}	
+			else
+			{
+				//Need to wait and listen for the child's exit status!
+				waitpid(spawnPid, &stat->status, 0);														//Wait for the child's exit status and save it in the status struct.
+			}
 		
 	}
 }
 
+/******************************************************************
+ * * ** Function: handOffBoth (command* cmd, status* stat)
+ * ** Description: Hand's off a cmd to be executed and changes the I/O of a child based on the command's flags and changes input and output to a specified file.
+ * ** Parameters: command* cmd, status* stat
+ * ** Pre-conditions: 
+ * ** Post-conditions: 
+ * *******************************************************************
+ */
 void handOffBoth(command* cmd, status* stat) {
 	//Need to redirect input of the command from a file that is given.
 	
@@ -801,27 +888,33 @@ void handOffBoth(command* cmd, status* stat) {
 		default:
 		//This is the parent
 			//Check if this a background process
-			if(cmd->bg != 1)
+			if( (cmd->bg == 1) && (SIGTSTPFlag == 0) )
 			{
-				//Need to wait and listen for the child's exit status!
-				waitpid(spawnPid, &stat->status, 0);														//Wait for the child's exit status and save it in the status struct.
+				//Save the process id of this parent so we can reap the corpse in the actual shell.
+				stat->bgNum += 1;
+				stat->bgPid[stat->bgNum - 1] = spawnPid;  
+				
+				printf("background pid created: %d\n", (int) spawnPid );									//Print out that the background process has finished.
+				fflush(stdout);
 			}	
 			else
 			{
-				//Save the process id of this parent so we can reap the corpse in the actual shell.
-				stat->bgNum += 1; 
-				stat->bgPid[stat->bgNum - 1] = spawnPid; 
-
-				printf("background pid created: %d\n", (int) spawnPid );									//Print out that the background process has finished.
-				fflush(stdout);
-				
+				//Need to wait and listen for the child's exit status!
+				waitpid(spawnPid, &stat->status, 0);														//Wait for the child's exit status and save it in the status struct.
 			}
 
 	}
 }
 
 
-
+/******************************************************************
+ * * ** Function: handOff (command* cmd, status* stat)
+ * ** Description: Determines how to handle a given command and what the command needs to do. I/O, etc.
+ * ** Parameters: command* cmd, status* stat
+ * ** Pre-conditions: 
+ * ** Post-conditions: 
+ * *******************************************************************
+ */
 void handOff (command* cmd, status* stat) {
 	//Handle for normal, input, output, and background processes.
 	if ( (cmd->input == 0) && (cmd->output == 0) )
@@ -860,7 +953,14 @@ void handOff (command* cmd, status* stat) {
 	}
 }
 
-
+/******************************************************************
+ * * ** Function: handle_SIGTSTP(int signo)
+ * ** Description: Signal handler for sigTSTP which 'toggles' a global flag for changing background modes.
+ * ** Parameters: int signo
+ * ** Pre-conditions: 
+ * ** Post-conditions: 
+ * *******************************************************************
+ */
 void handle_SIGTSTP(int signo) {
 	
 	//char* message = "Entering foreground-only mode (& is now ignored)\n";
@@ -884,22 +984,30 @@ void handle_SIGTSTP(int signo) {
 	
 }
 
+/******************************************************************
+ * * ** Function: main()
+ * ** Description: This is where the magic happens and the actual shell and structure setup is done. Decides the first layer of what kind of a command was recieved and how to handle it.
+ * ** Parameters: 
+ * ** Pre-conditions: 
+ * ** Post-conditions: 
+ * *******************************************************************
+ */
 int main() {
 	//Signaaction structure setup
-	struct sigaction SIGINT_default = {0}, SIGINT_ignore = {0}, SIGTSTP_action = {0};
+	struct sigaction SIGINT_default = {0}, SIGINT_ignore = {0}, SIGTSTP_action = {0};						//Declare three new sigaction structs for use
 
-	SIGINT_default.sa_handler = SIG_DFL;
-	SIGINT_ignore.sa_handler = SIG_IGN;
+	SIGINT_default.sa_handler = SIG_DFL;																	//Set this handler to the default
+	SIGINT_ignore.sa_handler = SIG_IGN;																		//Set this handler to ignore
 	
 	//Ignore CTRL-C
-	sigaction(SIGINT, &SIGINT_ignore, NULL);
+	sigaction(SIGINT, &SIGINT_ignore, NULL);																//Ignore CTRL-C signals
 	
 	SIGTSTP_action.sa_handler = handle_SIGTSTP;																//Point the handler to my handler function
 	sigfillset(&SIGTSTP_action.sa_mask);																	//Ignore all flags when the handler is run
 	SIGTSTP_action.sa_flags = 0;
 	
 	//Catch CTRL-Z
-	sigaction(SIGTSTP, &SIGTSTP_action, NULL);
+	sigaction(SIGTSTP, &SIGTSTP_action, NULL);																//Catch CTRL-Z signals with our signal handler.
 	
 	
 	command cmd;																							//Create an instance of my command struct
@@ -934,7 +1042,7 @@ int main() {
 			if( strcmp(cmd.argv[0], "\n") && (cmd.argv[0][0] != '#') )
 			{
 				//This is where we can check for our versions of cd, exit, and status
-				if( !strcmp(cmd.argv[0], "exit") )																//If we enter exit, we just exit the shell (aka this program/process)
+				if( !strcmp(cmd.argv[0], "exit") )															//If we enter exit, we just exit the shell (aka this program/process)
 				{
 					//printf("EXITING smallsh Session!\n");
 					//fflush(stdout);
@@ -947,7 +1055,7 @@ int main() {
 					
 					//printf("Changing Directory\n");
 					//fflush(stdout);
-					myCD(&cmd);																					//Pass myCD the commmand.
+					myCD(&cmd);																				//Pass myCD the commmand.
 				}
 				else if( !strcmp(cmd.argv[0], "status") )
 				{
@@ -963,7 +1071,7 @@ int main() {
 					
 					//printf("Passing off command to shell/OS?\n");
 					//fflush(stdout);
-					handOff(&cmd, &stat);																		//Decide how to hand off the command to the OS/Shell
+					handOff(&cmd, &stat);																	//Decide how to hand off the command to the OS/Shell
 				}
 			
 			}
