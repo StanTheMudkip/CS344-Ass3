@@ -147,7 +147,7 @@ void waitBg(status* stat) {
 				}
 				else
 				{
-					printf("exit value %d\n", stat->status);
+					printf("exit value %d\n", WEXITSTATUS(stat->status));
 					fflush(stdout);
 				}
 				
@@ -476,7 +476,10 @@ void handOffExec (command* cmd, status* stat) {
 				//Save the process id of this parent so we can reap the corpse in the actual shell.
 				stat->bgNum += 1;
 				stat->bgPid[stat->bgNum - 1] = spawnPid;  
-			}															//Wait for the child's exit status and save it in the status struct.
+				
+				printf("background pid created: %d\n", (int) spawnPid );										//Print out that the background process has finished.
+				fflush(stdout);
+			}																								//Wait for the child's exit status and save it in the status struct.
 		
 	}
 }
@@ -557,6 +560,9 @@ void handOffOut(command* cmd, status* stat) {
 				stat->bgNum += 1; 
 				stat->bgPid[stat->bgNum - 1] = spawnPid; 
 				
+				printf("background pid created: %d\n", (int) spawnPid );								//Print out that the background process has finished.
+				fflush(stdout);
+				
 			}
 	}
 }
@@ -635,6 +641,9 @@ void handOffIn(command* cmd, status* stat) {
 				//Save the process id of this parent so we can reap the corpse in the actual shell.
 				stat->bgNum += 1; 
 				stat->bgPid[stat->bgNum - 1] = spawnPid; 
+				
+				printf("background pid created: %d\n", (int) spawnPid );								//Print out that the background process has finished.
+				fflush(stdout);
 				
 			}														//Wait for the child's exit status and save it in the status struct.
 		
@@ -727,6 +736,9 @@ void handOffBoth(command* cmd, status* stat) {
 				//Save the process id of this parent so we can reap the corpse in the actual shell.
 				stat->bgNum += 1; 
 				stat->bgPid[stat->bgNum - 1] = spawnPid; 
+
+				printf("background pid created: %d\n", (int) spawnPid );								//Print out that the background process has finished.
+				fflush(stdout);
 				
 			}
 
@@ -779,6 +791,11 @@ void handOff (command* cmd, status* stat) {
 
 
 int main() {
+	//Signaaction structure setup
+	struct sigaction SIGINT_action = {0}, SIGSTP_action = {0};
+	
+	
+	
 	command cmd;																							//Create an instance of my command struct
 	cmd.argc = 0;																							//Set the unitialized argument count to 0;
 	//cmd.input = 0;
